@@ -19,7 +19,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 import streamlit as st
-import anthropic
+import tomllib
 
 logger = logging.getLogger("infra-advisor.llm")
 
@@ -41,11 +41,27 @@ class _ConfigMeta(type):
 class Config(metaclass=_ConfigMeta):
     @classmethod
     def get_api_key(cls) -> str:
-        if "ANTHROPIC_API_KEY" in os.environ and os.environ["ANTHROPIC_API_KEY"]:
-            return os.environ["ANTHROPIC_API_KEY"]
+        # First, check the environment (set by the bridge code or manually)
+        env_key = os.getenv("ANTHROPIC_API_KEY", "")
+        if env_key:
+            env_key = env_key.strip()
+            logger.debug("ANTHROPIC_API_KEY loaded from environment – length %d", len(env_key))
+            return env_key
+        # Fallback to Streamlit secrets (used in local development / Streamlit Cloud)
         try:
-            return str(st.secrets.get("ANTHROPIC_API_KEY", ""))
+            secret_key = str(st.secrets.get("ANTHROPIC_API_KEY", ""))
+            if secret_key:
+                return secret_key.strip()
         except Exception:
+            pass
+        # Final fallback to local .streamlit/secrets.toml
+        try:
+            with open(".streamlit/secrets.toml", "rb") as f:
+                data = tomllib.load(f)
+                secret_key = str(data.get("ANTHROPIC_API_KEY", ""))
+                return secret_key.strip()
+        except Exception as e:
+            logger.debug("Could not load ANTHROPIC_API_KEY from secrets.toml: %s", e)
             return ""
 
     @classmethod
