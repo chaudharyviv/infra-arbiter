@@ -34,7 +34,7 @@ except Exception:
 
 from domains import DOMAINS, DEPLOYMENTS, get_matching_vendors
 from advisor_extensions import ProcurementRAG, TCOEngine
-from compliance import run_compliance_checks
+from compliance import run_compliance_checks, POLICY_PACKS, DEFAULT_POLICY
 from arb_report import build_arb_document, build_blueprint_arb_document
 from blueprints import BLUEPRINTS, derive_components, analyze_synergy, default_params
 from llm_client import Config, get_anthropic_client, MarketIntel, AIAnalyzer
@@ -166,10 +166,11 @@ def brand_header(name: str, tag: str, subline: str = ""):
 class Requirements:
     domain: str
     workload: str
-    capacity: int          
+    capacity: int
     priority: str
     deployment: str
     availability_target: str
+    jurisdiction: str = "India / RBI"
 
     @property
     def unit(self) -> str:
@@ -324,6 +325,7 @@ def create_advisor_graph():
         # Domain-scoped preferred list + rich agreement status (expiry-aware)
         preferred = rag.preferred_vendors(req.domain)
         agr_status = rag.agreement_status(req.domain)
+        policy = POLICY_PACKS.get(req.jurisdiction, DEFAULT_POLICY)
         results = run_compliance_checks(
             domain=req.domain, workload=req.workload, deployment=req.deployment,
             availability_target=req.availability_target,
@@ -332,6 +334,7 @@ def create_advisor_graph():
             preferred_vendors=preferred,
             tco_estimates=state.get("tco_estimates", []),
             agreement_status=agr_status,
+            policy=policy,
         )
         warns = sum(1 for r in results if r["overall"] == "warn")
         fails = sum(1 for r in results if r["overall"] == "fail")
@@ -348,6 +351,7 @@ def create_advisor_graph():
                 "domain": req.domain, "workload": req.workload,
                 "scale": f"{req.capacity} {req.unit}", "deployment": req.deployment,
                 "priority": req.priority, "availability_sla": req.availability_target,
+                "jurisdiction": req.jurisdiction,
             },
             "architecture": state.get("architecture_analysis", {}),
             "market_sources": state.get("market_data", {}).get("sources", []),
@@ -443,6 +447,9 @@ def render_sidebar():
                                     disabled=running)
             availability = st.selectbox("Availability SLA", ["99.9%", "99.99%", "99.999%"], index=1,
                                         disabled=running)
+            jurisdiction = st.selectbox("Jurisdiction / Policy Pack", list(POLICY_PACKS.keys()),
+                                        disabled=running,
+                                        help="Which regulatory policy pack governs the compliance checks")
 
             # Sizing assumptions: transparent AND editable - nothing hardcoded
             params = dict(default_params(bp_name))
@@ -467,7 +474,8 @@ def render_sidebar():
                 return "solution", {"blueprint": bp_name, "driver_value": driver_value,
                                     "sizing_params": params,
                                     "components": comps, "deployment": deployment,
-                                    "priority": priority, "availability": availability}, ""
+                                    "priority": priority, "availability": availability,
+                                    "jurisdiction": jurisdiction}, ""
             return None, None, ""
 
         domain = st.selectbox("🏛️ Domain", list(DOMAINS.keys()), disabled=running,
@@ -482,6 +490,9 @@ def render_sidebar():
                                 disabled=running)
         availability = st.selectbox("Availability SLA", ["99.9%", "99.99%", "99.999%"], index=1,
                                     disabled=running)
+        jurisdiction = st.selectbox("Jurisdiction / Policy Pack", list(POLICY_PACKS.keys()),
+                                    disabled=running,
+                                    help="Which regulatory policy pack governs the compliance checks")
 
         QUERY_FOCUS_OPTIONS = {
             "Complete analysis": "",
@@ -501,7 +512,8 @@ def render_sidebar():
         st.divider()
         if st.button("🚀 Run Analysis", type="primary", use_container_width=True, disabled=running):
             return ("single",
-                    Requirements(domain, workload, capacity, priority, deployment, availability),
+                    Requirements(domain, workload, capacity, priority, deployment, availability,
+                                 jurisdiction),
                     user_query)
 
         with st.expander("ℹ️ About"):
@@ -799,7 +811,8 @@ def run_solution(payload: dict):
     comps = payload["components"]
     for i, c in enumerate(comps):
         req = Requirements(c["domain"], c["workload"], c["capacity"],
-                           payload["priority"], payload["deployment"], payload["availability"])
+                           payload["priority"], payload["deployment"], payload["availability"],
+                           payload["jurisdiction"])
         progress.progress(i / len(comps), text=f"Analyzing {c['domain']} · {c['workload']}...")
         final = dict(_blank_state(req))
         for update in workflow.stream(_blank_state(req)):
@@ -820,7 +833,8 @@ def run_solution(payload: dict):
 def render_solution_results(payload: dict, results: list):
     st.header(f"🧩 {payload['blueprint']} - Full-Stack Analysis")
     st.caption(f"Driver: {payload['driver_value']} · Deployment: {payload['deployment']} · "
-               f"SLA: {payload['availability']} · Components sized by correlated formulas")
+               f"SLA: {payload['availability']} · Jurisdiction: {payload['jurisdiction']} · "
+               f"Components sized by correlated formulas")
 
     synergy = analyze_synergy(results)
 
@@ -880,6 +894,7 @@ def render_solution_results(payload: dict, results: list):
         "sizing_assumptions": payload.get("sizing_params", {}),
         "deployment": payload["deployment"],
         "availability": payload["availability"],
+        "jurisdiction": payload["jurisdiction"],
         "synergy": synergy,
         "components": [{"domain": c["domain"], "workload": c["workload"],
                         "capacity": c["capacity"], "unit": c["unit"],
