@@ -47,7 +47,7 @@ st.set_page_config(page_title="Infrastructure Advisor", page_icon="🏛️", lay
                     initial_sidebar_state="expanded")
 
 # ==========================================================
-# Theme — enterprise/banking visual identity
+# Theme - enterprise/banking visual identity
 # ==========================================================
 # Palette: deep slate for structure/text, a single restrained blue accent for
 # action and trust signals, IBM Plex for a precise, technical-document feel
@@ -76,7 +76,7 @@ def apply_theme():
 html, body, [class*="css"] { font-family: 'IBM Plex Sans', -apple-system, sans-serif; }
 .stApp { background: var(--ia-canvas); }
 
-/* Top accent strip — the one signature flourish, kept quiet elsewhere */
+/* Top accent strip - the one signature flourish, kept quiet elsewhere */
 .stApp::before {
     content: ""; position: fixed; top: 0; left: 0; right: 0; height: 3px;
     background: linear-gradient(90deg, var(--ia-ink) 0%, var(--ia-accent) 55%, var(--ia-ink) 100%);
@@ -134,7 +134,7 @@ p, li, .stMarkdown { color: var(--ia-ink-soft); }
 [data-testid="stDataFrame"] { font-family: 'IBM Plex Mono', monospace; }
 [data-testid="stDataFrame"] { border: 1px solid var(--ia-line); border-radius: 8px; }
 
-/* Alerts — quieter, bordered rather than filled */
+/* Alerts - quieter, bordered rather than filled */
 [data-testid="stAlert"] { border-radius: 8px; border-width: 1px; }
 
 /* Progress bar in accent color */
@@ -188,7 +188,7 @@ class Requirements:
         )
 
 # ==========================================================
-# LangGraph Workflow (domain-agnostic) — Anthropic-backed, supervised
+# LangGraph Workflow (domain-agnostic) - Anthropic-backed, supervised
 # ==========================================================
 
 class AgentState(TypedDict):
@@ -222,7 +222,7 @@ def create_advisor_graph():
         req = state["requirements"]
         route, rationale = classify_intent(client, req, state.get("user_query", ""))
         return {"current_step": "routing", "route_decision": route,
-                "messages": [f"{ROUTE_LABELS[route]} — {rationale}"]}
+                "messages": [f"{ROUTE_LABELS[route]} - {rationale}"]}
 
     def route_after_classify(state: AgentState) -> Literal["gather_intelligence", "find_vendors"]:
         return "find_vendors" if state["route_decision"] in ("tco_focus", "compliance_focus") \
@@ -426,7 +426,7 @@ def render_sidebar():
 """, unsafe_allow_html=True)
 
         if running:
-            st.info("⏳ Analysis in progress — inputs are locked until it finishes.", icon="⏳")
+            st.info("⏳ Analysis in progress - inputs are locked until it finishes.", icon="⏳")
 
         mode = st.radio("Mode", ["Single Domain", "🧩 Solution Blueprint"], horizontal=True,
                         disabled=running,
@@ -672,7 +672,7 @@ def render_results(state: AgentState):
                     st.caption(
                         f"Parsed {realized['po_count']} POs from "
                         f"{', '.join(realized.get('source_docs') or [])}. "
-                        "Comparison is indicative — different generations and configs apply."
+                        "Comparison is indicative - different generations and configs apply."
                     )
                     unit = req.unit if hasattr(req, "unit") else "TB"
                     rows = []
@@ -692,7 +692,7 @@ def render_results(state: AgentState):
                     else:
                         st.info("No overlapping vendor realized-cost signal for this domain.")
         except Exception:
-            pass  # non-fatal — corpus may be absent in some test contexts
+            pass  # non-fatal - corpus may be absent in some test contexts
 
 
     if compliance := state.get("compliance_results"):
@@ -915,13 +915,13 @@ def main():
     apply_theme()
     brand_header(
         "Enterprise Infrastructure Advisor", "Internal",
-        "One agentic advisor for Storage · Server · Database · Middleware — "
+        "One agentic advisor for Storage · Server · Database · Middleware - "
         "LangGraph supervisor × Claude × Procurement RAG × deterministic TCO"
     )
 
     if Config.is_demo_mode():
         st.info(
-            "📦 **Demo / Offline mode** — no API key detected. "
+            "📦 **Demo / Offline mode** - no API key detected. "
             "The full workflow (supervisor routing, architecture, vendor ranking, "
             "RAG, TCO, compliance, ARB export) runs with high-quality local fixtures. "
             "Set `ANTHROPIC_API_KEY` to switch to live Claude + web search.",

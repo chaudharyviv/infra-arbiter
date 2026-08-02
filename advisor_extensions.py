@@ -6,7 +6,7 @@ ProcurementRAG
   In-memory retrieval over the local procurement corpus using TF-IDF +
   cosine similarity. Zero external embedding service, fully deterministic,
   zero extra latency/cost. Designed so the only public methods the graph
-  nodes ever call are `retrieve()` and `negotiated_discounts()` — swap the
+  nodes ever call are `retrieve()` and `negotiated_discounts()` - swap the
   backend for Voyage/pgvector/Chroma later without touching callers.
 
   Also extracts:
@@ -21,7 +21,7 @@ TCOEngine
   corpus frontmatter. Domain-specific overrides live in domains.py.
 
   Includes a sensitivity() helper that produces Base / Optimistic /
-  Conservative scenarios from any base estimate — still pure functions.
+  Conservative scenarios from any base estimate - still pure functions.
 
 Design intent for portfolio / enterprise demos:
   - Completely offline-capable
@@ -460,7 +460,7 @@ class TCOEngine:
 
     Design principles
     -----------------
-    * Pure functions — no side effects, no LLM involvement.
+    * Pure functions - no side effects, no LLM involvement.
     * Transparent formula: list rate × capacity × (1 − discount) + facilities + migration.
     * Uncertainty band (±15 %) reflects sizing / configuration variance.
     * Domain overrides arrive via `tco_cfg` so the same engine serves Storage,

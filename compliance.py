@@ -1,9 +1,9 @@
 """
-Compliance guardrail engine — deterministic policy-as-code checks applied to
+Compliance guardrail engine - deterministic policy-as-code checks applied to
 every recommended vendor. No LLM involvement by design: policy is code.
 
 Each check returns status: "pass" | "warn" | "fail" with a detail string.
-Rules are intentionally simple and transparent — auditable by an ARB.
+Rules are intentionally simple and transparent - auditable by an ARB.
 
 Policy packs
 ------------
@@ -64,7 +64,7 @@ def run_compliance_checks(
     ----------
     preferred_vendors : active (non-expired) agreement holders
     agreement_status  : optional rich map from ProcurementRAG.agreement_status()
-                        — when present, expiry warnings are emitted
+                        - when present, expiry warnings are emitted
     policy            : PolicyPack; defaults to Bank India / RBI
     """
     policy = policy or DEFAULT_POLICY
@@ -113,7 +113,7 @@ def run_compliance_checks(
                     "status": "warn",
                     "detail": (
                         f"{availability_target} is below the "
-                        f"{policy.production_sla_minimum} production minimum — "
+                        f"{policy.production_sla_minimum} production minimum - "
                         "acceptable only for non-production tiers"
                     ),
                 })
@@ -133,7 +133,7 @@ def run_compliance_checks(
             checks.append({
                 "name": "Data residency",
                 "status": "pass",
-                "detail": "On-premises deployment — residency requirement inherently met",
+                "detail": "On-premises deployment - residency requirement inherently met",
             })
 
         # --- 3. Vendor onboarding + agreement freshness ---
@@ -156,7 +156,7 @@ def run_compliance_checks(
                     "name": "Vendor onboarding",
                     "status": "pass",
                     "detail": (
-                        "Active agreement on file — preferred vendor, no new "
+                        "Active agreement on file - preferred vendor, no new "
                         "security assessment required"
                     ),
                 })
@@ -182,7 +182,7 @@ def run_compliance_checks(
                     "status": "warn",
                     "detail": (
                         f"Vendor represents {share:.0%} of evaluated spend and "
-                        f"already holds agreements — consider dual-vendor strategy "
+                        f"already holds agreements - consider dual-vendor strategy "
                         f"per concentration guidelines (threshold "
                         f"{policy.concentration_warn_share:.0%})"
                     ),

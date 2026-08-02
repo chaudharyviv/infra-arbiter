@@ -1,5 +1,5 @@
 """
-Anthropic Claude client — replaces the Vertex AI Gemini client.
+Anthropic Claude client - replaces the Vertex AI Gemini client.
 
 Two responsibilities, same interface contract as before so infra_advisor.py's
 graph nodes don't change shape:
@@ -110,7 +110,7 @@ def get_anthropic_client() -> Optional[anthropic.Anthropic]:
 
 
 # ==========================================================
-# Market Intelligence — Claude + native web_search tool
+# Market Intelligence - Claude + native web_search tool
 # ==========================================================
 
 class MarketIntel:
@@ -186,7 +186,7 @@ class MarketIntel:
 
 
 # ==========================================================
-# AI Analysis — Claude JSON mode
+# AI Analysis - Claude JSON mode
 # ==========================================================
 
 class AIAnalyzer:
