@@ -1,0 +1,21 @@
+*.streamlit/secrets.toml
+.streamlit/secrets.toml
+
+# Python compiled files
+*.pyc
+__pycache__/
+
+# Virtual environments
+env/
+venv/
+.venv/
+
+# Distribution packages
+*.egg-info/
+
+# IDE files
+.idea/
+
+# Logs and OS files
+*.log
+.DS_Store
