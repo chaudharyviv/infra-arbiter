@@ -6,7 +6,7 @@ ProcurementRAG
   In-memory retrieval over the local procurement corpus using TF-IDF +
   cosine similarity. Zero external embedding service, fully deterministic,
   zero extra latency/cost. Designed so the only public methods the graph
-  nodes ever call are `retrieve()` and `negotiated_discounts()` — swap the
+  nodes ever call are `retrieve()` and `negotiated_discounts()` - swap the
   backend for Voyage/pgvector/Chroma later without touching callers.
 
   Also extracts:
@@ -21,7 +21,7 @@ TCOEngine
   corpus frontmatter. Domain-specific overrides live in domains.py.
 
   Includes a sensitivity() helper that produces Base / Optimistic /
-  Conservative scenarios from any base estimate — still pure functions.
+  Conservative scenarios from any base estimate - still pure functions.
 
 Design intent for portfolio / enterprise demos:
   - Completely offline-capable
@@ -43,6 +43,15 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 logger = logging.getLogger("infra-advisor.ext")
+
+
+def _safe_max_df(n_docs: int, min_df: int = 1, desired_max_df: float = 0.95) -> float:
+    """TfidfVectorizer raises when floor(max_df * n_docs) < min_df - which
+    happens whenever a domain-filtered pool has only a handful of documents
+    (e.g. a single-vendor domain). Fall back to no upper bound in that case."""
+    if n_docs <= 1 or int(desired_max_df * n_docs) < min_df:
+        return 1.0
+    return desired_max_df
 
 DATA_DIR = os.environ.get(
     "PROCUREMENT_DATA_DIR",
@@ -246,7 +255,7 @@ class ProcurementRAG:
             self.vectorizer = TfidfVectorizer(
                 stop_words="english",
                 ngram_range=(1, 2),
-                max_df=0.95,
+                max_df=_safe_max_df(len(corpus_texts)),
                 min_df=1,
             )
             self.matrix = self.vectorizer.fit_transform(corpus_texts)
@@ -284,17 +293,17 @@ class ProcurementRAG:
         if pool is self.docs and self.matrix is not None and self.vectorizer is not None:
             matrix, vectorizer = self.matrix, self.vectorizer
         else:
-            vectorizer = TfidfVectorizer(
-                stop_words="english",
-                ngram_range=(1, 2),
-                max_df=0.95,
-                min_df=1,
-            )
             texts = [
                 f"{d['meta'].get('vendor', '')} {d['meta'].get('domain', '')} "
                 f"{d['meta'].get('doc_type', '')} {d['text']}"
                 for d in pool
             ]
+            vectorizer = TfidfVectorizer(
+                stop_words="english",
+                ngram_range=(1, 2),
+                max_df=_safe_max_df(len(texts)),
+                min_df=1,
+            )
             matrix = vectorizer.fit_transform(texts)
 
         q_vec = vectorizer.transform([query])
@@ -451,7 +460,7 @@ class TCOEngine:
 
     Design principles
     -----------------
-    * Pure functions — no side effects, no LLM involvement.
+    * Pure functions - no side effects, no LLM involvement.
     * Transparent formula: list rate × capacity × (1 − discount) + facilities + migration.
     * Uncertainty band (±15 %) reflects sizing / configuration variance.
     * Domain overrides arrive via `tco_cfg` so the same engine serves Storage,

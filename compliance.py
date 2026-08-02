@@ -1,9 +1,9 @@
 """
-Compliance guardrail engine — deterministic policy-as-code checks applied to
+Compliance guardrail engine - deterministic policy-as-code checks applied to
 every recommended vendor. No LLM involvement by design: policy is code.
 
 Each check returns status: "pass" | "warn" | "fail" with a detail string.
-Rules are intentionally simple and transparent — auditable by an ARB.
+Rules are intentionally simple and transparent - auditable by an ARB.
 
 Policy packs
 ------------
@@ -16,7 +16,22 @@ pack mirrors a typical Indian bank / RBI outsourcing posture. Future packs
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Optional, Set, Literal, TypedDict
+
+CheckStatus = Literal["pass", "warn", "fail"]
+
+
+class CheckResult(TypedDict):
+    name: str
+    status: CheckStatus
+    detail: str
+
+
+class ComplianceResult(TypedDict):
+    vendor: str
+    overall: CheckStatus
+    checks: List[CheckResult]
+    policy_pack: str
 
 
 @dataclass(frozen=True)
@@ -31,15 +46,50 @@ class PolicyPack:
     })
     production_sla_minimum: str = "99.99%"
     tier1_sla: str = "99.999%"
-    approved_regions_note: str = "asia-south1 / asia-south2 with CMEK"
+    approved_regions: List[str] = field(default_factory=lambda: ["asia-south1", "asia-south2"])
+    approved_regions_cmek: bool = True
     new_vendor_assessment_weeks: str = "8–12"
     concentration_warn_share: float = 0.60
     # Soft signal: agreements expiring inside this many days surface a warn
     agreement_expiry_warn_days: int = 180
 
+    @property
+    def approved_regions_note(self) -> str:
+        regions = " / ".join(self.approved_regions)
+        return f"{regions} with CMEK" if self.approved_regions_cmek else regions
+
 
 # Module-level default used by the graph node unless a caller injects another.
+# RBI outsourcing rules require regulated data to stay in India - do not add
+# other jurisdictions' regions here. Swap in one of the packs below instead.
 DEFAULT_POLICY = PolicyPack()
+
+# Example packs for other jurisdictions. Swap via run_compliance_checks(policy=...);
+# check logic is unchanged - only the region list (and any other constants) differ.
+APAC_POLICY = PolicyPack(
+    name="Bank APAC (example)",
+    approved_regions=["asia-southeast1", "asia-northeast1", "australia-southeast1"],
+)
+
+EU_POLICY = PolicyPack(
+    name="Bank EU / GDPR (example)",
+    approved_regions=["europe-west1", "europe-west3", "europe-west4"],
+)
+
+US_POLICY = PolicyPack(
+    name="Bank US (example)",
+    approved_regions=["us-east1", "us-central1", "us-west1"],
+)
+
+# Lookup for UI/config-driven pack selection - keyed by short jurisdiction
+# label, not policy.name (which stays the descriptive string shown on
+# results/reports).
+POLICY_PACKS: Dict[str, PolicyPack] = {
+    "India / RBI": DEFAULT_POLICY,
+    "APAC": APAC_POLICY,
+    "EU": EU_POLICY,
+    "US": US_POLICY,
+}
 
 
 def _cloud_only(meta: Dict[str, Any]) -> bool:
@@ -57,18 +107,18 @@ def run_compliance_checks(
     tco_estimates: List[Dict[str, Any]],
     policy: Optional[PolicyPack] = None,
     agreement_status: Optional[Dict[str, Dict[str, Any]]] = None,
-) -> List[Dict[str, Any]]:
+) -> List[ComplianceResult]:
     """Returns one result block per recommended vendor.
 
     Parameters
     ----------
     preferred_vendors : active (non-expired) agreement holders
     agreement_status  : optional rich map from ProcurementRAG.agreement_status()
-                        — when present, expiry warnings are emitted
+                        - when present, expiry warnings are emitted
     policy            : PolicyPack; defaults to Bank India / RBI
     """
     policy = policy or DEFAULT_POLICY
-    results = []
+    results: List[ComplianceResult] = []
     tco_by_vendor = {t["vendor"]: t for t in tco_estimates}
     agreement_status = agreement_status or {}
 
@@ -78,7 +128,7 @@ def run_compliance_checks(
         if not meta or rec.get("fit_score", 0) == 0:
             continue
 
-        checks = []
+        checks: List[CheckResult] = []
 
         # --- 1. Availability SLA floor ---
         if workload in policy.tier1_workloads:
@@ -113,13 +163,13 @@ def run_compliance_checks(
                     "status": "warn",
                     "detail": (
                         f"{availability_target} is below the "
-                        f"{policy.production_sla_minimum} production minimum — "
+                        f"{policy.production_sla_minimum} production minimum - "
                         "acceptable only for non-production tiers"
                     ),
                 })
 
         # --- 2. Data residency ---
-        if _cloud_only(meta) or deployment in ("Cloud", "Hybrid"):
+        if _cloud_only(meta) or deployment == "Cloud":
             checks.append({
                 "name": "Data residency",
                 "status": "warn",
@@ -129,11 +179,23 @@ def run_compliance_checks(
                     f"and CMEK before design approval"
                 ),
             })
+        elif deployment == "Hybrid":
+            checks.append({
+                "name": "Data residency",
+                "status": "warn",
+                "detail": (
+                    f"Hybrid deployment: on-premises components meet residency "
+                    f"directly; the cloud-resident portion must remain in-region "
+                    f"({policy.approved_regions_note}). Confirm region pinning and "
+                    f"CMEK for that portion before design approval - lower exposure "
+                    f"than a full cloud deployment"
+                ),
+            })
         else:
             checks.append({
                 "name": "Data residency",
                 "status": "pass",
-                "detail": "On-premises deployment — residency requirement inherently met",
+                "detail": "On-premises deployment - residency requirement inherently met",
             })
 
         # --- 3. Vendor onboarding + agreement freshness ---
@@ -156,7 +218,7 @@ def run_compliance_checks(
                     "name": "Vendor onboarding",
                     "status": "pass",
                     "detail": (
-                        "Active agreement on file — preferred vendor, no new "
+                        "Active agreement on file - preferred vendor, no new "
                         "security assessment required"
                     ),
                 })
@@ -182,7 +244,7 @@ def run_compliance_checks(
                     "status": "warn",
                     "detail": (
                         f"Vendor represents {share:.0%} of evaluated spend and "
-                        f"already holds agreements — consider dual-vendor strategy "
+                        f"already holds agreements - consider dual-vendor strategy "
                         f"per concentration guidelines (threshold "
                         f"{policy.concentration_warn_share:.0%})"
                     ),
@@ -194,7 +256,7 @@ def run_compliance_checks(
                     "detail": "No concentration concern at this spend share",
                 })
 
-        overall = (
+        overall: CheckStatus = (
             "fail" if any(c["status"] == "fail" for c in checks)
             else "warn" if any(c["status"] == "warn" for c in checks)
             else "pass"

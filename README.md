@@ -45,8 +45,8 @@ The result is usable both as a portfolio demonstration of production-grade agent
 ## Quick start (fully offline)
 
 ```bash
-git clone <this-repo>
-cd enterprise-infra-advisor
+git clone https://github.com/chaudharyviv/infra-arbiter
+cd infra-arbiter
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
@@ -54,16 +54,16 @@ pip install -r requirements.txt
 streamlit run infra_advisor.py
 ```
 
-The UI, LangGraph workflow, RAG retrieval, TCO calculations (including sensitivity and realized-cost comparison), compliance checks and ARB document generation all run end-to-end with realistic canned responses when `ANTHROPIC_API_KEY` is absent (or `DEMO_MODE=1` is set).
+The UI, LangGraph workflow, RAG retrieval, TCO calculations (including sensitivity and realized-cost comparison), compliance checks and ARB document generation all run end-to-end with realistic canned responses whenever `ANTHROPIC_API_KEY` is absent - `Config.is_demo_mode()` is the single source of truth (see [ARCHITECTURE.md](ARCHITECTURE.md#demo-mode-contract)).
 
 ### Optional live mode
 
 ```bash
 # .streamlit/secrets.toml  or export
 ANTHROPIC_API_KEY=sk-ant-...
-# optional overrides
-# ANTHROPIC_MODEL=claude-sonnet-4-...
-# ANTHROPIC_ROUTER_MODEL=claude-haiku-...
+# optional overrides (defaults shown)
+# ANTHROPIC_MODEL=claude-sonnet-5
+# ANTHROPIC_ROUTER_MODEL=claude-haiku-4-5-20251001
 streamlit run infra_advisor.py
 ```
 
@@ -188,7 +188,7 @@ No network or API key required.
 ## Project layout
 
 ```
-enterprise-infra-advisor/
+infra-arbiter/
 ├── infra_advisor.py          # Streamlit entrypoint + LangGraph workflow
 ├── domains.py                # Domain registry (vendors, workloads, TCO rates)
 ├── advisor_extensions.py     # ProcurementRAG + TCOEngine (+ sensitivity, realized)
@@ -199,9 +199,8 @@ enterprise-infra-advisor/
 ├── arb_report.py             # ARB Decision Record (.docx) generator
 ├── data/procurement/         # Local agreement, policy & PO-history corpus
 ├── tests/                    # Deterministic unit tests (27 cases)
-├── docs/                     # Architecture notes
-├── scripts/                  # Demo / test helpers
-├── .streamlit/               # Theme + secrets example
+├── .streamlit/               # Theme (config.toml) + secrets example
+├── ARCHITECTURE.md           # Control flow, AI/deterministic boundary, demo-mode contract
 ├── requirements.txt
 ├── LICENSE
 └── README.md

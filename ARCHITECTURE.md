@@ -7,7 +7,7 @@ User input (sidebar)
         │
         ▼
 ┌───────────────────┐
-│  classify_query   │  Supervisor — route = full | market_only | tco_focus | compliance_focus
+│  classify_query   │  Supervisor - route = full | market_only | tco_focus | compliance_focus
 └─────────┬─────────┘
           │
     ┌─────┴──────┐
@@ -39,11 +39,11 @@ analyze_arch   retrieve_procurement
 
 ## Extensibility points
 
-1. **New domain** — add an entry to `DOMAINS` in `domains.py`. No graph changes.
-2. **New blueprint** — add to `BLUEPRINTS` with driver, params, and `Component` list.
-3. **Richer RAG** — replace `ProcurementRAG` internals; keep `retrieve()` / `negotiated_discounts()` signatures.
-4. **Live TCO drivers** — extend `tco_cfg` and the estimate formula; UI already surfaces methodology.
-5. **Policy packs** — parameterise `compliance.py` rules by organisation / region.
+1. **New domain** - add an entry to `DOMAINS` in `domains.py`. No graph changes.
+2. **New blueprint** - add to `BLUEPRINTS` with driver, params, and `Component` list.
+3. **Richer RAG** - replace `ProcurementRAG` internals; keep `retrieve()` / `negotiated_discounts()` signatures.
+4. **Live TCO drivers** - extend `tco_cfg` and the estimate formula; UI already surfaces methodology.
+5. **Policy packs** - parameterise `compliance.py` rules by organisation / region.
 
 ## Demo mode contract
 

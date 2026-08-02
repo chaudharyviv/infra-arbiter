@@ -34,7 +34,7 @@ except Exception:
 
 from domains import DOMAINS, DEPLOYMENTS, get_matching_vendors
 from advisor_extensions import ProcurementRAG, TCOEngine
-from compliance import run_compliance_checks
+from compliance import run_compliance_checks, POLICY_PACKS, DEFAULT_POLICY
 from arb_report import build_arb_document, build_blueprint_arb_document
 from blueprints import BLUEPRINTS, derive_components, analyze_synergy, default_params
 from llm_client import Config, get_anthropic_client, MarketIntel, AIAnalyzer
@@ -43,7 +43,120 @@ from supervisor import classify_intent, ROUTE_LABELS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("infra-advisor")
 
-st.set_page_config(page_title="Infrastructure Advisor - Claude", page_icon="🏛️", layout="wide")
+st.set_page_config(page_title="Enterprise Infrastructure Advisor", layout="wide",
+                    initial_sidebar_state="expanded")
+
+# ==========================================================
+# Theme - enterprise/banking visual identity
+# ==========================================================
+# Palette: deep slate for structure/text, a single restrained blue accent for
+# action and trust signals, IBM Plex for a precise, technical-document feel
+# (Plex Sans for UI text, Plex Mono for figures/scores/currency so numbers
+# read as data rather than prose). One accent color, used sparingly.
+
+def apply_theme():
+    st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+    --ia-ink: #0F172A;
+    --ia-ink-soft: #475569;
+    --ia-muted: #64748B;
+    --ia-line: #E2E8F0;
+    --ia-surface: #FFFFFF;
+    --ia-canvas: #F8FAFC;
+    --ia-accent: #0F766E;
+    --ia-accent-soft: #EDF7F5;
+    --ia-success: #15803D;
+    --ia-warn: #B45309;
+    --ia-danger: #B91C1C;
+}
+
+html, body, [class*="css"] { font-family: 'IBM Plex Sans', -apple-system, sans-serif; }
+.stApp { background: var(--ia-canvas); }
+
+/* Top accent strip - the one signature flourish, kept quiet elsewhere */
+.stApp::before {
+    content: ""; position: fixed; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--ia-ink) 0%, var(--ia-accent) 55%, var(--ia-ink) 100%);
+    z-index: 999999;
+}
+
+h1, h2, h3 { color: var(--ia-ink); font-weight: 600; letter-spacing: -0.01em; }
+h1 { font-weight: 700; }
+p, li, .stMarkdown { color: var(--ia-ink-soft); }
+.stCaption, [data-testid="stCaptionContainer"] { color: var(--ia-muted) !important; }
+
+/* Brand header block (used at top of page and top of sidebar) */
+.ia-brand { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.1rem; }
+.ia-brand .ia-mark { font-size: 1.5rem; }
+.ia-brand .ia-name { font-size: 1.55rem; font-weight: 700; color: var(--ia-ink); letter-spacing: -0.02em; }
+.ia-brand .ia-tag { font-size: 0.72rem; font-weight: 600; color: var(--ia-accent); text-transform: uppercase;
+    letter-spacing: 0.08em; background: var(--ia-accent-soft); padding: 2px 8px; border-radius: 4px; }
+.ia-subline { color: var(--ia-muted); font-size: 0.9rem; margin-top: 0.15rem; margin-bottom: 1.1rem; }
+.ia-divider-accent { height: 2px; background: linear-gradient(90deg, var(--ia-accent), transparent);
+    border: none; margin: 0.4rem 0 1.2rem 0; }
+
+/* Sidebar */
+[data-testid="stSidebar"] { background: var(--ia-surface); border-right: 1px solid var(--ia-line); }
+[data-testid="stSidebar"] h2 { font-size: 1.0rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ia-ink-soft); font-weight: 700; }
+
+/* Metric cards */
+[data-testid="stMetric"] {
+    background: var(--ia-surface); border: 1px solid var(--ia-line); border-radius: 10px;
+    padding: 0.85rem 1rem 0.7rem 1rem; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+[data-testid="stMetricLabel"] { color: var(--ia-muted) !important; font-size: 0.78rem !important;
+    text-transform: uppercase; letter-spacing: 0.04em; }
+[data-testid="stMetricValue"] { font-family: 'IBM Plex Mono', monospace !important; color: var(--ia-ink) !important; }
+
+/* Buttons */
+.stButton > button {
+    border-radius: 8px; font-weight: 600; border: 1px solid var(--ia-line); transition: all 0.15s ease;
+}
+.stButton > button[kind="primary"] {
+    background: var(--ia-accent) !important; border-color: var(--ia-accent) !important;
+    color: #FFFFFF !important;
+}
+.stButton > button[kind="primary"] p { color: #FFFFFF !important; }
+.stButton > button[kind="primary"]:hover { background: #0B5C55 !important; border-color: #0B5C55 !important; }
+
+/* Expanders read as document sections, not accordions */
+[data-testid="stExpander"] {
+    border: 1px solid var(--ia-line) !important; border-radius: 10px !important;
+    background: var(--ia-surface); overflow: hidden;
+}
+[data-testid="stExpander"] summary { font-weight: 600; color: var(--ia-ink); }
+
+/* Numeric surfaces (tables, code, monospace figures) */
+[data-testid="stDataFrame"] { font-family: 'IBM Plex Mono', monospace; }
+[data-testid="stDataFrame"] { border: 1px solid var(--ia-line); border-radius: 8px; }
+
+/* Alerts - quieter, bordered rather than filled */
+[data-testid="stAlert"] { border-radius: 8px; border-width: 1px; }
+
+/* Progress bar in accent color */
+[data-testid="stProgress"] > div > div > div { background-color: var(--ia-accent); }
+
+hr { border-color: var(--ia-line) !important; }
+
+/* Hide default Streamlit chrome for a cleaner enterprise shell */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+
+def brand_header(name: str, tag: str, subline: str = ""):
+    st.markdown(f"""
+<div class="ia-brand"><span class="ia-mark">🏛️</span>
+<span class="ia-name">{name}</span><span class="ia-tag">{tag}</span></div>
+{f'<div class="ia-subline">{subline}</div>' if subline else ''}
+<hr class="ia-divider-accent"/>
+""", unsafe_allow_html=True)
+
 
 # ==========================================================
 # Requirements (domain-generic)
@@ -53,10 +166,11 @@ st.set_page_config(page_title="Infrastructure Advisor - Claude", page_icon="🏛
 class Requirements:
     domain: str
     workload: str
-    capacity: int          # in domain units (TB, servers, TB data, instances)
+    capacity: int
     priority: str
     deployment: str
     availability_target: str
+    jurisdiction: str = "India / RBI"
 
     @property
     def unit(self) -> str:
@@ -75,7 +189,7 @@ class Requirements:
         )
 
 # ==========================================================
-# LangGraph Workflow (domain-agnostic) — Anthropic-backed, supervised
+# LangGraph Workflow (domain-agnostic) - Anthropic-backed, supervised
 # ==========================================================
 
 class AgentState(TypedDict):
@@ -109,7 +223,7 @@ def create_advisor_graph():
         req = state["requirements"]
         route, rationale = classify_intent(client, req, state.get("user_query", ""))
         return {"current_step": "routing", "route_decision": route,
-                "messages": [f"{ROUTE_LABELS[route]} — {rationale}"]}
+                "messages": [f"{ROUTE_LABELS[route]} - {rationale}"]}
 
     def route_after_classify(state: AgentState) -> Literal["gather_intelligence", "find_vendors"]:
         return "find_vendors" if state["route_decision"] in ("tco_focus", "compliance_focus") \
@@ -211,6 +325,7 @@ def create_advisor_graph():
         # Domain-scoped preferred list + rich agreement status (expiry-aware)
         preferred = rag.preferred_vendors(req.domain)
         agr_status = rag.agreement_status(req.domain)
+        policy = POLICY_PACKS.get(req.jurisdiction, DEFAULT_POLICY)
         results = run_compliance_checks(
             domain=req.domain, workload=req.workload, deployment=req.deployment,
             availability_target=req.availability_target,
@@ -219,6 +334,7 @@ def create_advisor_graph():
             preferred_vendors=preferred,
             tco_estimates=state.get("tco_estimates", []),
             agreement_status=agr_status,
+            policy=policy,
         )
         warns = sum(1 for r in results if r["overall"] == "warn")
         fails = sum(1 for r in results if r["overall"] == "fail")
@@ -235,6 +351,7 @@ def create_advisor_graph():
                 "domain": req.domain, "workload": req.workload,
                 "scale": f"{req.capacity} {req.unit}", "deployment": req.deployment,
                 "priority": req.priority, "availability_sla": req.availability_target,
+                "jurisdiction": req.jurisdiction,
             },
             "architecture": state.get("architecture_analysis", {}),
             "market_sources": state.get("market_data", {}).get("sources", []),
@@ -301,21 +418,38 @@ def render_sidebar():
     Solution Blueprint mode - the supervisor routing below is scoped to
     Single Domain mode to keep the blueprint's cross-domain correlation
     logic (which needs every component fully analyzed) unaffected."""
-    with st.sidebar:
-        st.header("📋 Requirements")
+    running = st.session_state.get("is_running", False)
 
-        mode = st.radio("Mode", ["Single Domain", "🧩 Solution Blueprint"], horizontal=True,
+    with st.sidebar:
+        st.markdown("""
+<div style="display:flex;align-items:baseline;gap:0.5rem;margin-bottom:0.2rem;">
+  <span style="font-size:1.15rem;">🏛️</span>
+  <span style="font-weight:700;font-size:1.05rem;color:var(--ia-ink);letter-spacing:-0.01em;">Infrastructure Advisor</span>
+</div>
+<div style="color:var(--ia-muted);font-size:0.78rem;margin-bottom:0.9rem;">Requirements &amp; scope</div>
+""", unsafe_allow_html=True)
+
+        if running:
+            st.info("⏳ Analysis in progress - inputs are locked until it finishes.", icon="⏳")
+
+        mode = st.radio("Mode", ["Single Domain", "Solution Blueprint"], horizontal=True,
+                        disabled=running,
                         help="Blueprint mode correlates multiple domains with linked sizing")
 
-        if mode == "🧩 Solution Blueprint":
-            bp_name = st.selectbox("Use Case", list(BLUEPRINTS.keys()))
+        if mode == "Solution Blueprint":
+            bp_name = st.selectbox("Use Case", list(BLUEPRINTS.keys()), disabled=running)
             bp = BLUEPRINTS[bp_name]
-            st.caption(bp["description"])
             drv = bp["driver"]
-            driver_value = st.slider(drv["label"], drv["min"], drv["max"], drv["default"], drv["step"])
-            deployment = st.selectbox("Deployment", DEPLOYMENTS)
-            priority = st.selectbox("Design Priority", ["Performance", "Cost", "Scalability", "Simplicity"])
-            availability = st.selectbox("Availability SLA", ["99.9%", "99.99%", "99.999%"], index=1)
+            driver_value = st.slider(drv["label"], drv["min"], drv["max"], drv["default"], drv["step"],
+                                     disabled=running)
+            deployment = st.selectbox("Deployment", DEPLOYMENTS, disabled=running)
+            priority = st.selectbox("Design Priority", ["Performance", "Cost", "Scalability", "Simplicity"],
+                                    disabled=running)
+            availability = st.selectbox("Availability SLA", ["99.9%", "99.99%", "99.999%"], index=1,
+                                        disabled=running)
+            jurisdiction = st.selectbox("Jurisdiction / Policy Pack", list(POLICY_PACKS.keys()),
+                                        disabled=running,
+                                        help="Which regulatory policy pack governs the compliance checks")
 
             # Sizing assumptions: transparent AND editable - nothing hardcoded
             params = dict(default_params(bp_name))
@@ -326,7 +460,7 @@ def render_sidebar():
                     params[key] = st.number_input(
                         spec["label"], min_value=spec["min"], max_value=spec["max"],
                         value=spec["default"], step=spec["step"],
-                        help=spec.get("help", ""), key=f"bp_{bp_name}_{key}")
+                        help=spec.get("help", ""), key=f"bp_{bp_name}_{key}", disabled=running)
 
             comps = derive_components(bp_name, driver_value, params)
             with st.expander("📐 Derived sizing (correlated)", expanded=True):
@@ -336,35 +470,50 @@ def render_sidebar():
                     st.caption(c["rationale"])
 
             st.divider()
-            if st.button("🚀 Analyze Full Stack", type="primary", use_container_width=True):
+            if st.button("🚀 Analyze Full Stack", type="primary", use_container_width=True, disabled=running):
                 return "solution", {"blueprint": bp_name, "driver_value": driver_value,
                                     "sizing_params": params,
                                     "components": comps, "deployment": deployment,
-                                    "priority": priority, "availability": availability}, ""
+                                    "priority": priority, "availability": availability,
+                                    "jurisdiction": jurisdiction}, ""
             return None, None, ""
 
-        domain = st.selectbox("🏛️ Domain", list(DOMAINS.keys()),
+        domain = st.selectbox("🏛️ Domain", list(DOMAINS.keys()), disabled=running,
                               help="Which infrastructure decision are you making?")
         cfg = DOMAINS[domain]
 
-        workload = st.selectbox("Workload Type", list(cfg["workloads"].keys()))
+        workload = st.selectbox("Workload Type", list(cfg["workloads"].keys()), disabled=running)
         s = cfg["capacity_slider"]
-        capacity = st.slider(s["label"], s["min"], s["max"], s["default"], s["step"])
-        deployment = st.selectbox("Deployment", DEPLOYMENTS)
-        priority = st.selectbox("Design Priority", ["Performance", "Cost", "Scalability", "Simplicity"])
-        availability = st.selectbox("Availability SLA", ["99.9%", "99.99%", "99.999%"], index=1)
+        capacity = st.slider(s["label"], s["min"], s["max"], s["default"], s["step"], disabled=running)
+        deployment = st.selectbox("Deployment", DEPLOYMENTS, disabled=running)
+        priority = st.selectbox("Design Priority", ["Performance", "Cost", "Scalability", "Simplicity"],
+                                disabled=running)
+        availability = st.selectbox("Availability SLA", ["99.9%", "99.99%", "99.999%"], index=1,
+                                    disabled=running)
+        jurisdiction = st.selectbox("Jurisdiction / Policy Pack", list(POLICY_PACKS.keys()),
+                                    disabled=running,
+                                    help="Which regulatory policy pack governs the compliance checks")
 
-        user_query = st.text_input(
-            "🎯 Ask a specific question (optional)",
-            placeholder="e.g. \"just the cost comparison\" or \"is this compliant for on-prem?\"",
-            help="Leave blank for the complete analysis. A specific question lets the "
-                 "supervisor skip steps it doesn't need - e.g. a cost-only question "
+        QUERY_FOCUS_OPTIONS = {
+            "Complete analysis": "",
+            "Cost comparison": "just the cost comparison",
+            "Compliance check": "is this compliant for on-prem?",
+            "Market landscape": "what does the current market/vendor landscape look like?",
+        }
+        query_focus = st.selectbox(
+            "Focus",
+            list(QUERY_FOCUS_OPTIONS.keys()),
+            disabled=running,
+            help="Complete analysis runs every step. A focused choice lets the "
+                 "supervisor skip steps it doesn't need - e.g. cost-focused "
                  "skips market research and compliance.")
+        user_query = QUERY_FOCUS_OPTIONS[query_focus]
 
         st.divider()
-        if st.button("🚀 Run Analysis", type="primary", use_container_width=True):
+        if st.button("🚀 Run Analysis", type="primary", use_container_width=True, disabled=running):
             return ("single",
-                    Requirements(domain, workload, capacity, priority, deployment, availability),
+                    Requirements(domain, workload, capacity, priority, deployment, availability,
+                                 jurisdiction),
                     user_query)
 
         with st.expander("ℹ️ About"):
@@ -398,28 +547,27 @@ def render_workflow_progress(current: str):
         st.progress((idx + 1) / len(PROGRESS_STEPS),
                     text=f"Current: {STEP_LABELS.get(current, 'Processing...')}")
 
-
-
 # ==========================================================
 # Provenance badges - show WHERE each result comes from
 # ==========================================================
 
 PROV = {
-    "search":  ("🔍 LIVE WEB",        "#1a56b8", "Claude native web search - real-time, cited"),
-    "llm":     ("🤖 LLM (CLAUDE)",    "#b3261e", "Anthropic Claude - AI judgment, human review required"),
-    "rag":     ("📄 RAG",             "#137333", "TF-IDF retrieval over internal procurement docs"),
-    "rules":   ("⚙️ RULE ENGINE",     "#137333", "Deterministic code - auditable, no LLM"),
-    "math":    ("🧮 DETERMINISTIC",   "#137333", "Computed cost model - the LLM never invents a number"),
-    "hybrid":  ("🤖+📄 LLM × RAG",    "#7627bb", "Claude ranking grounded by retrieved procurement context"),
+    "search":  ("LIVE WEB",       "#1D4ED8", "Claude native web search - real-time, cited"),
+    "llm":     ("LLM · CLAUDE",   "#B91C1C", "Anthropic Claude - AI judgment, human review required"),
+    "rag":     ("RAG",            "#15803D", "TF-IDF retrieval over internal procurement docs"),
+    "rules":   ("RULE ENGINE",    "#0F172A", "Deterministic code - auditable, no LLM"),
+    "math":    ("DETERMINISTIC",  "#0F172A", "Computed cost model - the LLM never invents a number"),
+    "hybrid":  ("LLM × RAG",      "#7627bb", "Claude ranking grounded by retrieved procurement context"),
 }
 
 def provenance(kind: str):
     """Render a small source-of-truth chip under a section header."""
     label, color, tip = PROV[kind]
     st.markdown(
-        f"<span style='background:{color}1A;color:{color};border:1px solid {color};"
-        f"border-radius:12px;padding:2px 10px;font-size:0.72rem;font-weight:600;'"
-        f" title='{tip}'>{label}</span> <span style='color:#5f6368;font-size:0.72rem;'>{tip}</span>",
+        f"<span style='display:inline-block;background:{color}12;color:{color};border:1px solid {color}55;"
+        f"border-radius:5px;padding:2px 8px;font-family:\"IBM Plex Mono\",monospace;font-size:0.68rem;"
+        f"font-weight:600;letter-spacing:0.03em;' title='{tip}'>{label}</span> "
+        f"<span style='color:#52606D;font-size:0.75rem;'>{tip}</span>",
         unsafe_allow_html=True)
 
 
@@ -540,7 +688,7 @@ def render_results(state: AgentState):
                     st.caption(
                         f"Parsed {realized['po_count']} POs from "
                         f"{', '.join(realized.get('source_docs') or [])}. "
-                        "Comparison is indicative — different generations and configs apply."
+                        "Comparison is indicative - different generations and configs apply."
                     )
                     unit = req.unit if hasattr(req, "unit") else "TB"
                     rows = []
@@ -560,7 +708,7 @@ def render_results(state: AgentState):
                     else:
                         st.info("No overlapping vendor realized-cost signal for this domain.")
         except Exception:
-            pass  # non-fatal — corpus may be absent in some test contexts
+            pass  # non-fatal - corpus may be absent in some test contexts
 
 
     if compliance := state.get("compliance_results"):
@@ -663,7 +811,8 @@ def run_solution(payload: dict):
     comps = payload["components"]
     for i, c in enumerate(comps):
         req = Requirements(c["domain"], c["workload"], c["capacity"],
-                           payload["priority"], payload["deployment"], payload["availability"])
+                           payload["priority"], payload["deployment"], payload["availability"],
+                           payload["jurisdiction"])
         progress.progress(i / len(comps), text=f"Analyzing {c['domain']} · {c['workload']}...")
         final = dict(_blank_state(req))
         for update in workflow.stream(_blank_state(req)):
@@ -684,7 +833,8 @@ def run_solution(payload: dict):
 def render_solution_results(payload: dict, results: list):
     st.header(f"🧩 {payload['blueprint']} - Full-Stack Analysis")
     st.caption(f"Driver: {payload['driver_value']} · Deployment: {payload['deployment']} · "
-               f"SLA: {payload['availability']} · Components sized by correlated formulas")
+               f"SLA: {payload['availability']} · Jurisdiction: {payload['jurisdiction']} · "
+               f"Components sized by correlated formulas")
 
     synergy = analyze_synergy(results)
 
@@ -744,6 +894,7 @@ def render_solution_results(payload: dict, results: list):
         "sizing_assumptions": payload.get("sizing_params", {}),
         "deployment": payload["deployment"],
         "availability": payload["availability"],
+        "jurisdiction": payload["jurisdiction"],
         "synergy": synergy,
         "components": [{"domain": c["domain"], "workload": c["workload"],
                         "capacity": c["capacity"], "unit": c["unit"],
@@ -780,13 +931,16 @@ def render_solution_results(payload: dict, results: list):
 
 
 def main():
-    st.title("🏛️ Enterprise Infrastructure Advisor")
-    st.caption("One agentic advisor for Storage · Server · Database · Middleware — "
-               "LangGraph supervisor × Claude × Procurement RAG × deterministic TCO")
+    apply_theme()
+    brand_header(
+        "Enterprise Infrastructure Advisor", "Internal",
+        "One agentic advisor for Storage · Server · Database · Middleware - "
+        "LangGraph supervisor × Claude × Procurement RAG × deterministic TCO"
+    )
 
     if Config.is_demo_mode():
         st.info(
-            "📦 **Demo / Offline mode** — no API key detected. "
+            "📦 **Demo / Offline mode** - no API key detected. "
             "The full workflow (supervisor routing, architecture, vendor ranking, "
             "RAG, TCO, compliance, ARB export) runs with high-quality local fixtures. "
             "Set `ANTHROPIC_API_KEY` to switch to live Claude + web search.",
@@ -800,50 +954,63 @@ def main():
         st.session_state.agent_state = None
     if "solution_results" not in st.session_state:
         st.session_state.solution_results = None
+    st.session_state.setdefault("is_running", False)
+    st.session_state.setdefault("pending_run", None)
 
     mode, payload, user_query = render_sidebar()
 
-    if mode == "solution" and payload:
-        st.session_state.agent_state = None
-        try:
-            with st.spinner("Running correlated multi-domain analysis on Claude..."):
-                st.session_state.solution_results = {
-                    "payload": payload, "results": run_solution(payload)}
-            st.success("✅ Full-stack analysis completed!")
-        except Exception as e:
-            logger.exception("Solution analysis failed")
-            st.error(f"❌ Stack analysis failed: {e}")
-            st.stop()
+    # Two-phase trigger: a click only *records* the request and flips the
+    # running flag, then immediately reruns. That rerun redraws the sidebar
+    # with everything disabled (Streamlit only pushes UI updates between
+    # script runs, so the disabled state can't reach the browser mid-run) -
+    # only *then*, on this second pass, does the actual long-running work
+    # start. Either mode returning here means a fresh click just happened,
+    # since disabled buttons can no longer produce one.
+    if mode in ("solution", "single") and payload and not st.session_state.is_running:
+        st.session_state.is_running = True
+        st.session_state.pending_run = {"mode": mode, "payload": payload, "user_query": user_query}
+        st.rerun()
 
-    requirements = payload if mode == "single" else None
-
-    if requirements:
-        st.session_state.solution_results = None
-        initial_state: AgentState = {
-            **_blank_state(requirements), "user_query": user_query,
-        }
-        st.subheader("🔗 Agentic Workflow")
-        progress_placeholder = st.empty()
+    pending = st.session_state.pending_run
+    if st.session_state.is_running and pending:
         try:
-            workflow = create_advisor_graph()
-            with st.spinner(f"Analyzing {requirements.domain} with Claude..."):
-                accumulated: Dict[str, Any] = dict(initial_state)
-                for state_update in workflow.stream(initial_state):
-                    if isinstance(state_update, dict):
-                        node_delta = list(state_update.values())[0]
-                        for k, v in node_delta.items():
-                            if k == "messages":
-                                accumulated["messages"] = accumulated.get("messages", []) + v
-                            else:
-                                accumulated[k] = v
-                        with progress_placeholder.container():
-                            render_workflow_progress(accumulated.get("current_step", ""))
-                st.session_state.agent_state = accumulated
-                st.success("✅ Workflow completed!")
+            if pending["mode"] == "solution":
+                st.session_state.agent_state = None
+                with st.spinner("Running correlated multi-domain analysis on Claude..."):
+                    st.session_state.solution_results = {
+                        "payload": pending["payload"], "results": run_solution(pending["payload"])}
+                st.success("✅ Full-stack analysis completed!")
+            else:
+                st.session_state.solution_results = None
+                requirements = pending["payload"]
+                initial_state: AgentState = {
+                    **_blank_state(requirements), "user_query": pending["user_query"],
+                }
+                st.subheader("🔗 Agentic Workflow")
+                progress_placeholder = st.empty()
+                workflow = create_advisor_graph()
+                with st.spinner(f"Analyzing {requirements.domain} with Claude..."):
+                    accumulated: Dict[str, Any] = dict(initial_state)
+                    for state_update in workflow.stream(initial_state):
+                        if isinstance(state_update, dict):
+                            node_delta = list(state_update.values())[0]
+                            for k, v in node_delta.items():
+                                if k == "messages":
+                                    accumulated["messages"] = accumulated.get("messages", []) + v
+                                else:
+                                    accumulated[k] = v
+                            with progress_placeholder.container():
+                                render_workflow_progress(accumulated.get("current_step", ""))
+                    st.session_state.agent_state = accumulated
+                    st.success("✅ Workflow completed!")
         except Exception as e:
-            logger.exception("Workflow failed")
-            st.error(f"❌ Workflow failed: {e}")
-            st.stop()
+            logger.exception("Analysis failed")
+            st.error(f"❌ Analysis failed: {e}")
+        finally:
+            # Always released, even on error, so a failed run can't leave
+            # the sidebar permanently locked.
+            st.session_state.is_running = False
+            st.session_state.pending_run = None
 
     if st.session_state.solution_results:
         st.divider()
