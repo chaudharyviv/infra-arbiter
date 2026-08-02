@@ -24,7 +24,7 @@ import os
 import json
 import re
 import logging
-from typing import Literal, Tuple
+from typing import Literal, Optional, Tuple
 
 import anthropic
 
@@ -46,12 +46,33 @@ def get_router_model() -> str:
         return "claude-haiku-4-5-20251001"
 
 
-def classify_intent(client: anthropic.Anthropic, req, user_query: str) -> Tuple[Route, str]:
+_KEYWORD_ROUTES = [
+    ("tco_focus", ("cost", "price", "pricing", "tco", "budget", "cheap", "expensive", "spend")),
+    ("compliance_focus", ("compliance", "policy", "governance", "audit", "regulat", "security review")),
+    ("market_only", ("market", "trend", "landscape", "news", "who leads", "vendors are")),
+]
+
+
+def _classify_intent_keywords(user_query: str) -> Tuple[Route, str]:
+    """Transparent keyword routing used in demo/offline mode, when there's no
+    LLM available to classify the query. Falls back to 'full' - same safe
+    default as the LLM path."""
+    q = user_query.lower()
+    for route, keywords in _KEYWORD_ROUTES:
+        if any(kw in q for kw in keywords):
+            return route, (f"[Demo mode - keyword routing] Matched on '{route}' keywords.")
+    return "full", "[Demo mode - keyword routing] No specific focus keywords matched - running the complete analysis."
+
+
+def classify_intent(client: Optional[anthropic.Anthropic], req, user_query: str) -> Tuple[Route, str]:
     """Returns (route, rationale). Falls back to 'full' on empty query or any
     classification failure - the safe default is to run everything, never to
     silently under-run the analysis."""
     if not user_query or not user_query.strip():
         return "full", "No specific question asked - running the complete analysis."
+
+    if client is None:
+        return _classify_intent_keywords(user_query)
 
     prompt = f"""A user is using an enterprise infrastructure advisory tool for a
 {req.domain} decision ({req.workload}, {req.capacity} {req.unit}). They asked:

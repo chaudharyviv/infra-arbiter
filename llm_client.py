@@ -78,9 +78,17 @@ class Config(metaclass=_ConfigMeta):
             return False
         return True
 
+    @classmethod
+    def is_demo_mode(cls) -> bool:
+        """No API key configured -> the whole app runs offline on fixtures
+        instead of live Claude calls. See ARCHITECTURE.md's Demo mode contract."""
+        return not cls.get_api_key()
+
 
 @st.cache_resource
-def get_anthropic_client() -> anthropic.Anthropic:
+def get_anthropic_client() -> Optional[anthropic.Anthropic]:
+    if Config.is_demo_mode():
+        return None
     return anthropic.Anthropic(api_key=Config.get_api_key())
 
 
@@ -89,10 +97,12 @@ def get_anthropic_client() -> anthropic.Anthropic:
 # ==========================================================
 
 class MarketIntel:
-    def __init__(self, client: anthropic.Anthropic):
+    def __init__(self, client: Optional[anthropic.Anthropic]):
         self.client = client
 
-    def search(self, prompt: str) -> Dict[str, Any]:
+    def search(self, prompt: str, req=None) -> Dict[str, Any]:
+        if self.client is None:
+            return self._demo_narrative(req)
         try:
             response = self.client.messages.create(
                 model=Config.get_model(),
@@ -127,13 +137,43 @@ class MarketIntel:
             logger.error(f"Market intel failed: {e}")
             return {"answer": f"Search unavailable: {e}", "sources": [], "error": str(e)}
 
+    def _demo_narrative(self, req) -> Dict[str, Any]:
+        """Canned, domain-appropriate narrative for offline/demo mode - no live
+        web search available without an API key."""
+        if req is None:
+            return {"answer": "Demo mode: no live market search available.",
+                    "sources": [], "timestamp": datetime.now().isoformat()}
+        from domains import DOMAINS  # local import avoids a circular import at module load
+
+        vendor_db = DOMAINS[req.domain]["vendors"]
+        matching = [v for v, d in vendor_db.items() if req.workload in d.get("workloads", [])]
+        leaders = matching[:4] or list(vendor_db.keys())[:4]
+        year = datetime.now().year
+        answer = (
+            f"[Demo mode - offline fixture, no live web search] The {year} enterprise "
+            f"{req.domain.lower()} market for {req.workload} workloads remains led by "
+            f"{', '.join(leaders[:-1])} and {leaders[-1]}" if len(leaders) > 1 else
+            f"[Demo mode - offline fixture, no live web search] The {year} enterprise "
+            f"{req.domain.lower()} market for {req.workload} workloads is led by {leaders[0]}"
+        )
+        answer += (
+            f". Deployment preferences continue to shift toward {req.deployment.lower()} models, "
+            f"with vendors differentiating on price/performance, data reduction, and management "
+            f"simplicity. Set ANTHROPIC_API_KEY to replace this fixture with a live, cited web search."
+        )
+        return {
+            "answer": answer,
+            "sources": [{"title": "Demo mode - offline fixture (no live web search)", "url": ""}],
+            "timestamp": datetime.now().isoformat(),
+        }
+
 
 # ==========================================================
 # AI Analysis — Claude JSON mode
 # ==========================================================
 
 class AIAnalyzer:
-    def __init__(self, client: anthropic.Anthropic):
+    def __init__(self, client: Optional[anthropic.Anthropic]):
         self.client = client
 
     def _generate_json(self, system: str, prompt: str) -> Optional[dict]:
@@ -173,6 +213,8 @@ class AIAnalyzer:
         return None
 
     def analyze_architecture(self, req, market_data: Dict) -> Dict:
+        if self.client is None:
+            return self._demo_architecture(req)
         metrics = ", ".join(f"{k}: {v}" for k, v in req.metrics().items()) or "N/A"
         market_insight = (market_data.get("answer") or "No market data")[:800]
 
@@ -212,6 +254,8 @@ Return JSON with exactly these keys:
         if not vendors:
             return []
         vendor_db = DOMAINS[req.domain]["vendors"]
+        if self.client is None:
+            return self._demo_vendor_ranking(req, vendors, vendor_db, procurement_context)
         vendor_info = []
         for v in vendors[:8]:
             data = vendor_db.get(v)
@@ -259,3 +303,74 @@ procurement context into the ranking. Do NOT estimate costs - TCO is computed se
                      "considerations": ["Vendor evaluation failed - invalid AI response"],
                      "error": "Invalid or empty AI response"}]
         return [v for v in result["vendors"] if isinstance(v, dict) and v.get("name")]
+
+    def _demo_architecture(self, req) -> Dict:
+        """Realistic architecture fixture for offline/demo mode, built from the
+        domain's own workload metrics rather than a live Claude call."""
+        metrics = req.metrics()
+        ha_note = ("active-active clustering across sites" if "99.99" in req.availability_target
+                    or "99.999" in req.availability_target else "active-passive failover within a site")
+        return {
+            "architecture_type": f"{req.workload} - optimized {req.domain.lower()} architecture "
+                                  f"[Demo mode - offline fixture]",
+            "key_recommendations": [
+                f"Size for {req.capacity} {req.unit} with headroom for 30% organic growth",
+                f"Deploy as {req.deployment.lower()} to match stated deployment preference",
+                f"Prioritize {req.priority.lower()} in vendor and configuration selection",
+                "Set ANTHROPIC_API_KEY to replace this fixture with live Claude reasoning",
+            ],
+            "performance_requirements": metrics or {"Note": "No published benchmark for this workload"},
+            "scalability_notes": f"Scale-out approach recommended to reach {req.capacity} {req.unit} "
+                                  f"while preserving the workload's latency/throughput profile.",
+            "redundancy_approach": f"{ha_note.capitalize()} to meet the {req.availability_target} SLA target.",
+        }
+
+    def _demo_vendor_ranking(self, req, vendors: List[str], vendor_db: Dict,
+                              procurement_context: Optional[List[Dict]]) -> List[Dict]:
+        """Deterministic, rule-based vendor ranking for offline/demo mode - uses
+        the same vendor metadata (strengths, cost profile, sweet spot) the live
+        prompt would, just scored without an LLM call."""
+        priority = (req.priority or "").lower()
+        priority_cost_fit = {
+            "cost": {"budget": 3, "competitive": 1, "premium": -2, "variable": 0},
+            "performance": {"premium": 3, "competitive": 1, "budget": -1, "variable": 0},
+        }
+        cost_fit = next((v for k, v in priority_cost_fit.items() if k in priority), {})
+
+        agreement_vendors = set()
+        if procurement_context:
+            for doc in procurement_context:
+                text = (doc.get("text") or "").lower()
+                for v in vendors:
+                    if v.lower() in text:
+                        agreement_vendors.add(v)
+
+        scored = []
+        for v in vendors[:8]:
+            data = vendor_db.get(v)
+            if not data:
+                continue
+            score = 6.0 + cost_fit.get(data.get("cost_profile", ""), 0)
+            has_agreement = v in agreement_vendors
+            if has_agreement:
+                score += 1.5
+            score = max(1.0, min(10.0, score))
+
+            strengths = list(data.get("strengths", []))[:3]
+            if has_agreement:
+                strengths = strengths[:2] + ["Existing negotiated procurement agreement"]
+
+            considerations = []
+            if data.get("sweet_spot"):
+                considerations.append(f"Sweet spot: {data['sweet_spot']}")
+            if not has_agreement:
+                considerations.append("No existing procurement agreement - may need new-vendor security review")
+
+            scored.append({
+                "name": v, "fit_score": round(score, 1),
+                "strengths": strengths or ["Meets workload requirements"],
+                "considerations": considerations or ["No specific concerns identified"],
+            })
+
+        scored.sort(key=lambda x: x["fit_score"], reverse=True)
+        return scored[:4]
