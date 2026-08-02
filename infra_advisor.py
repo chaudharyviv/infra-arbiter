@@ -32,6 +32,11 @@ try:
 except Exception:
     pass  # no secrets.toml present (e.g. local dev using real env vars) - fine
 
+# LangSmith tracing is opt-in via LANGCHAIN_TRACING_V2/LANGCHAIN_API_KEY (see README).
+# Give traces a sensible project name if the user enabled tracing but didn't set one.
+if os.environ.get("LANGCHAIN_TRACING_V2", "").lower() == "true":
+    os.environ.setdefault("LANGCHAIN_PROJECT", "infra-advisor")
+
 from domains import DOMAINS, DEPLOYMENTS, get_matching_vendors
 from advisor_extensions import ProcurementRAG, TCOEngine
 from compliance import run_compliance_checks, POLICY_PACKS, DEFAULT_POLICY
@@ -803,6 +808,19 @@ def _blank_state(req: Requirements) -> dict:
             "current_step": "initializing"}
 
 
+def _trace_config(req: Requirements) -> dict:
+    """LangSmith run naming/tags - inert unless LANGCHAIN_TRACING_V2 is set."""
+    return {
+        "run_name": f"{req.domain}:{req.workload}",
+        "tags": [req.domain, req.deployment, req.jurisdiction],
+        "metadata": {
+            "domain": req.domain, "workload": req.workload,
+            "deployment": req.deployment, "jurisdiction": req.jurisdiction,
+            "priority": req.priority,
+        },
+    }
+
+
 def run_solution(payload: dict):
     """Run the (unchanged) LangGraph workflow once per correlated component."""
     workflow = create_advisor_graph()
@@ -815,7 +833,7 @@ def run_solution(payload: dict):
                            payload["jurisdiction"])
         progress.progress(i / len(comps), text=f"Analyzing {c['domain']} · {c['workload']}...")
         final = dict(_blank_state(req))
-        for update in workflow.stream(_blank_state(req)):
+        for update in workflow.stream(_blank_state(req), config=_trace_config(req)):
             if isinstance(update, dict):
                 delta = list(update.values())[0]
                 for k, v in delta.items():
@@ -991,7 +1009,7 @@ def main():
                 workflow = create_advisor_graph()
                 with st.spinner(f"Analyzing {requirements.domain} with Claude..."):
                     accumulated: Dict[str, Any] = dict(initial_state)
-                    for state_update in workflow.stream(initial_state):
+                    for state_update in workflow.stream(initial_state, config=_trace_config(requirements)):
                         if isinstance(state_update, dict):
                             node_delta = list(state_update.values())[0]
                             for k, v in node_delta.items():
