@@ -43,7 +43,7 @@ from supervisor import classify_intent, ROUTE_LABELS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("infra-advisor")
 
-st.set_page_config(page_title="Infrastructure Advisor", page_icon="🏛️", layout="wide",
+st.set_page_config(page_title="Enterprise Infrastructure Advisor", layout="wide",
                     initial_sidebar_state="expanded")
 
 # ==========================================================
@@ -166,7 +166,7 @@ def brand_header(name: str, tag: str, subline: str = ""):
 class Requirements:
     domain: str
     workload: str
-    capacity: int          # in domain units (TB, servers, TB data, instances)
+    capacity: int          
     priority: str
     deployment: str
     availability_target: str
@@ -428,14 +428,13 @@ def render_sidebar():
         if running:
             st.info("⏳ Analysis in progress - inputs are locked until it finishes.", icon="⏳")
 
-        mode = st.radio("Mode", ["Single Domain", "🧩 Solution Blueprint"], horizontal=True,
+        mode = st.radio("Mode", ["Single Domain", "Solution Blueprint"], horizontal=True,
                         disabled=running,
                         help="Blueprint mode correlates multiple domains with linked sizing")
 
-        if mode == "🧩 Solution Blueprint":
+        if mode == "Solution Blueprint":
             bp_name = st.selectbox("Use Case", list(BLUEPRINTS.keys()), disabled=running)
             bp = BLUEPRINTS[bp_name]
-            st.caption(bp["description"])
             drv = bp["driver"]
             driver_value = st.slider(drv["label"], drv["min"], drv["max"], drv["default"], drv["step"],
                                      disabled=running)
@@ -484,13 +483,20 @@ def render_sidebar():
         availability = st.selectbox("Availability SLA", ["99.9%", "99.99%", "99.999%"], index=1,
                                     disabled=running)
 
-        user_query = st.text_input(
-            "🎯 Ask a specific question (optional)",
-            placeholder="e.g. \"just the cost comparison\" or \"is this compliant for on-prem?\"",
+        QUERY_FOCUS_OPTIONS = {
+            "Complete analysis": "",
+            "Cost comparison": "just the cost comparison",
+            "Compliance check": "is this compliant for on-prem?",
+            "Market landscape": "what does the current market/vendor landscape look like?",
+        }
+        query_focus = st.selectbox(
+            "Focus",
+            list(QUERY_FOCUS_OPTIONS.keys()),
             disabled=running,
-            help="Leave blank for the complete analysis. A specific question lets the "
-                 "supervisor skip steps it doesn't need - e.g. a cost-only question "
+            help="Complete analysis runs every step. A focused choice lets the "
+                 "supervisor skip steps it doesn't need - e.g. cost-focused "
                  "skips market research and compliance.")
+        user_query = QUERY_FOCUS_OPTIONS[query_focus]
 
         st.divider()
         if st.button("🚀 Run Analysis", type="primary", use_container_width=True, disabled=running):
@@ -528,8 +534,6 @@ def render_workflow_progress(current: str):
         idx = PROGRESS_STEPS.index(slot)
         st.progress((idx + 1) / len(PROGRESS_STEPS),
                     text=f"Current: {STEP_LABELS.get(current, 'Processing...')}")
-
-
 
 # ==========================================================
 # Provenance badges - show WHERE each result comes from
