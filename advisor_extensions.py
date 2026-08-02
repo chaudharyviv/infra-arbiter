@@ -44,6 +44,15 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 logger = logging.getLogger("infra-advisor.ext")
 
+
+def _safe_max_df(n_docs: int, min_df: int = 1, desired_max_df: float = 0.95) -> float:
+    """TfidfVectorizer raises when floor(max_df * n_docs) < min_df - which
+    happens whenever a domain-filtered pool has only a handful of documents
+    (e.g. a single-vendor domain). Fall back to no upper bound in that case."""
+    if n_docs <= 1 or int(desired_max_df * n_docs) < min_df:
+        return 1.0
+    return desired_max_df
+
 DATA_DIR = os.environ.get(
     "PROCUREMENT_DATA_DIR",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "procurement"),
@@ -246,7 +255,7 @@ class ProcurementRAG:
             self.vectorizer = TfidfVectorizer(
                 stop_words="english",
                 ngram_range=(1, 2),
-                max_df=0.95,
+                max_df=_safe_max_df(len(corpus_texts)),
                 min_df=1,
             )
             self.matrix = self.vectorizer.fit_transform(corpus_texts)
@@ -284,17 +293,17 @@ class ProcurementRAG:
         if pool is self.docs and self.matrix is not None and self.vectorizer is not None:
             matrix, vectorizer = self.matrix, self.vectorizer
         else:
-            vectorizer = TfidfVectorizer(
-                stop_words="english",
-                ngram_range=(1, 2),
-                max_df=0.95,
-                min_df=1,
-            )
             texts = [
                 f"{d['meta'].get('vendor', '')} {d['meta'].get('domain', '')} "
                 f"{d['meta'].get('doc_type', '')} {d['text']}"
                 for d in pool
             ]
+            vectorizer = TfidfVectorizer(
+                stop_words="english",
+                ngram_range=(1, 2),
+                max_df=_safe_max_df(len(texts)),
+                min_df=1,
+            )
             matrix = vectorizer.fit_transform(texts)
 
         q_vec = vectorizer.transform([query])
