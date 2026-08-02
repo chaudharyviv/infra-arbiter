@@ -15,7 +15,7 @@ An intelligent, multi-domain infrastructure advisory platform that combines:
 | Reasoning & ranking | Anthropic Claude (architecture narrative + vendor fit) |
 | Live market context | Claude native web search (cited sources) |
 | Internal knowledge | **Procurement RAG** (TF-IDF over local policy & agreement corpus) |
-| Cost modelling | **Deterministic 3-year TCO engine** — never invented by the LLM |
+| Cost modelling | **Deterministic 3-year TCO engine** - never invented by the LLM |
 | Cost realism | **Sensitivity scenarios** + **model-vs-realized** overlay from PO history |
 | Governance | **Policy-as-code** compliance (SLA, residency, onboarding, concentration, agreement expiry) |
 | Cross-domain programmes | **Six Solution Blueprints** with editable, transparent sizing formulas |
@@ -50,7 +50,7 @@ cd enterprise-infra-advisor
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# No API key required — demo mode activates automatically
+# No API key required - demo mode activates automatically
 streamlit run infra_advisor.py
 ```
 
@@ -87,7 +87,7 @@ Supervisor (router) ──┬─ full ────► Market Intel → Architect
 
 | Module | Role |
 |---|---|
-| `domains.py` | Domain registry — workloads, vendors, TCO rates, capacity sliders. Adding Network or Backup is a data-only change. |
+| `domains.py` | Domain registry - workloads, vendors, TCO rates, capacity sliders. Adding Network or Backup is a data-only change. |
 | `supervisor.py` | Intent router. Classifies free-text questions and prunes the graph. Keyword fallback keeps the path visible in demo mode. |
 | `advisor_extensions.py` | **ProcurementRAG** (TF-IDF, domain-scoped, expiry-aware discounts, realized-cost extraction) + **TCOEngine** (estimate, sensitivity, model-vs-realized). |
 | `compliance.py` | Policy-as-code guardrails via a swapable **PolicyPack** (Tier-1 SLA, residency, onboarding + agreement freshness, concentration). |
@@ -123,7 +123,7 @@ Frontmatter supplies structured metadata (`vendor`, `discount_pct`, `domain`, `v
 
 ## Solution Blueprints
 
-Six shipped programmes demonstrate cross-domain correlation. Sizing assumptions are first-class, named parameters editable in the sidebar — changing them instantly re-derives the entire stack.
+Six shipped programmes demonstrate cross-domain correlation. Sizing assumptions are first-class, named parameters editable in the sidebar - changing them instantly re-derives the entire stack.
 
 | Blueprint | Driver | Domains | Narrative |
 |---|---|---|---|
@@ -148,7 +148,7 @@ After each stack run the system:
 ### TCO engine
 
 - Formula: domain list rate (or cloud tier) × capacity × (1 − negotiated discount) + facilities + migration baseline, with a ±15% sizing band.
-- **Sensitivity**: Optimistic / Base / Conservative overlays (discount depth, capacity growth, facilities burden) — pure arithmetic, no LLM.
+- **Sensitivity**: Optimistic / Base / Conservative overlays (discount depth, capacity growth, facilities burden) - pure arithmetic, no LLM.
 - **Model vs realized**: when PO history exists, unit cost from the model is compared to historical $/TB (vendor-specific or portfolio average) and surfaced in the UI.
 
 ### Compliance (policy-as-code)
@@ -157,7 +157,7 @@ Checks per recommended vendor:
 
 1. Tier-1 / production SLA floor  
 2. Data residency (in-region + CMEK note for cloud/hybrid)  
-3. Vendor onboarding — preferred if active agreement; **expiring-soon agreements raise REVIEW**  
+3. Vendor onboarding - preferred if active agreement; **expiring-soon agreements raise REVIEW**  
 4. Concentration risk against a configurable spend-share threshold  
 
 Rules live in a frozen **`PolicyPack`** dataclass (default: “Bank India / RBI”). Swap the pack, not the check logic.
@@ -215,7 +215,7 @@ enterprise-infra-advisor/
 |---|---|
 | TF-IDF instead of embeddings | Corpus is small and well-structured; deterministic, zero cost, zero provisioning. Interface is already swap-ready for a vector store. |
 | Supervisor router | Most “agent” demos run a fixed pipeline. Routing only the nodes that are needed reduces latency, cost and cognitive load. |
-| TCO never leaves Python | Pricing is a business decision. The LLM ranks and explains; the engine computes — including sensitivity and realized overlays. |
+| TCO never leaves Python | Pricing is a business decision. The LLM ranks and explains; the engine computes - including sensitivity and realized overlays. |
 | Agreement expiry is first-class | Discounts and preferred-vendor status degrade after `valid_until`. Compliance surfaces expiring agreements as REVIEW. |
 | Compliance as a PolicyPack | Bank policy must be auditable and swappable (region / organisation) without rewriting check code. |
 | Fixed blueprints, not a free-form builder | Correlated sizing from a named driver is the product story. Six realistic programmes beat a generic multi-select form for portfolio clarity and demo reliability. |
@@ -233,7 +233,7 @@ enterprise-infra-advisor/
 | Blueprint: Payments / Real-Time · 50K TPS | Messaging-primary stack; Tier-1 pressure across domains |
 | Blueprint: AI/ML Training · 8 GPU servers | Correlated storage + metadata; possible multi-domain vendor leverage |
 | Blueprint: DR Secondary Site · 200 TB primary | Asymmetric compute (40% default) vs full storage replica |
-| Free-text: “just the cost comparison” | Supervisor routes `tco_focus` — skips market narrative and compliance |
+| Free-text: “just the cost comparison” | Supervisor routes `tco_focus` - skips market narrative and compliance |
 
 ---
 
@@ -250,7 +250,7 @@ enterprise-infra-advisor/
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
 
 ---
 
