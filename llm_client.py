@@ -20,6 +20,7 @@ from datetime import datetime
 
 import streamlit as st
 import tomllib
+import anthropic
 
 logger = logging.getLogger("infra-advisor.llm")
 
