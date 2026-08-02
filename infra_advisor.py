@@ -117,7 +117,7 @@ def create_advisor_graph():
 
     def gather_market_intelligence(state: AgentState) -> dict:
         req = state["requirements"]
-        market_data = intel.search(req.to_search_prompt())
+        market_data = intel.search(req.to_search_prompt(), req)
         return {"current_step": "market_intelligence",
                 "messages": [f"✅ Market insights gathered for {req.domain} / {req.workload}"],
                 "market_data": market_data}
@@ -793,7 +793,7 @@ def main():
             icon="📦",
         )
 
-    if not Config.validate():
+    if not Config.is_demo_mode() and not Config.validate():
         st.stop()
 
     if "agent_state" not in st.session_state:
