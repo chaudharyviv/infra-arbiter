@@ -67,6 +67,17 @@ ANTHROPIC_API_KEY=sk-ant-...
 streamlit run infra_advisor.py
 ```
 
+### Optional LangSmith tracing
+
+Off by default. Set these (`.streamlit/secrets.toml` or env) to send LangGraph run traces to LangSmith - each run is tagged with domain/deployment/jurisdiction for filtering:
+
+```bash
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=ls__...
+# optional - defaults to "infra-advisor" once tracing is enabled
+# LANGCHAIN_PROJECT=infra-advisor
+```
+
 ---
 
 ## Architecture
